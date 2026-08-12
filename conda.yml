@@ -1,4 +1,4 @@
-name: datahow
+name: titer-ml
 channels:
   - conda-forge
   - defaults

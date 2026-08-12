@@ -1,0 +1,17 @@
+[project]
+name = "datahow-task"
+version = "0.1.0"
+description = "Predicting titer values for bioprocessing experiments using machine learning."
+readme = "README.md"
+authors = [
+    { name = "Rangsiman Ketkaew", email = "rangsiman1993@gmail.com" }
+]
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+datahow-task = "datahow_task:main"
+
+[build-system]
+requires = ["uv_build>=0.12.3,<0.13.0"]
+build-backend = "uv_build"

@@ -31,6 +31,17 @@ Each experiment runs for a different duration (7, 8, 9, 10 or 14 days, set by `Z
 | [test_pred.ipynb](test_pred.ipynb) | Titer prediction on the actual test set |
 | [note.md](note.md) | Quick note |
 
+## Development
+
+#### Tech stack
+
+- Environment: uv, ruff
+- Data processing: NumPy, Pandas, Scikit-learn
+- Model development: Scikit-learn, XGBoost
+- DepOps: CI/CD
+
+#### Architecture
+
 ## Author
 
 Rangsiman Ketkaew

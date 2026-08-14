@@ -58,7 +58,7 @@ Each experiment runs for a different duration (7, 8, 9, 10 or 14 days, set by `Z
 
 ## Get Started
 
-Automated setup
+**1. Environment setup**
 ```sh
 git clone <repository-url>
 cd datahow-titer-ml
@@ -66,8 +66,36 @@ python -m venv .venv
 source .venv/bin/activate
 pip install uv
 uv sync
-python main.py
 ```
+
+**2.1 Deploy model with FastAPI (native)**
+```sh
+# Start microservice
+uv run uvicorn main:app --host 0.0.0.0 --port 8000
+
+# Check status
+curl -X GET http://0.0.0.0:8000/health
+
+# Call inference endpoint
+uv run python spec_yml_to_json.py > payload.json
+curl -X POST http://0.0.0.0:8000/predict \
+    -H "Content-Type: application/json" \
+    --data @payload.json
+```
+
+**2.2 Deploy model with Docker**
+```sh
+# Build image
+docker build -t datahow-titer-ml .
+
+# Run container
+docker run --rm -p 8000:8000 datahow-titer-ml
+
+# Health check
+curl -X GET http://localhost:8000/health
+```
+
+
 
 ## Development
 

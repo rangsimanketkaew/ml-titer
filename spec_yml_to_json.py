@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+
 import yaml
 
 SPEC_PATH = pathlib.Path("inference_server_spec.yml")

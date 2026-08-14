@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pathlib
+
 import pandas as pd
 from fastapi.testclient import TestClient
 
@@ -41,9 +42,9 @@ def test_build_feature_table_produces_expected_feature_values() -> None:
 
     for key, expected_value in expected.items():
         actual = float(features.iloc[0][key])
-        assert (
-            abs(actual - expected_value) < 1e-4
-        ), f"{key} mismatch: {actual} != {expected_value}"
+        assert abs(actual - expected_value) < 1e-4, (
+            f"{key} mismatch: {actual} != {expected_value}"
+        )
 
 
 def test_predict_endpoint_returns_numeric_prediction() -> None:

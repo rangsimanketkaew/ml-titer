@@ -30,6 +30,9 @@ datahow-titer-ml = "datahow_titer_ml:main"
 requires = ["uv_build>=0.12.3,<0.13.0"]
 build-backend = "uv_build"
 
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
 [tool.ruff]
 # Same as Black
 line-length = 88

@@ -1,26 +1,21 @@
 from pathlib import Path
 
 import pandas as pd
+from model import performance_model, save_model, train_mlr_model, train_xgb_model
 from pydantic import BaseModel
-
-from ml.model import performance_model, save_model, train_mlr_model, train_xgb_model
 
 
 class TrainingConfig(BaseModel):
-    data_path: Path = Path("data/train_exp_features.csv")
-    models_dir: Path = Path("models")
+    data_path: Path = Path("../data/train_exp_features.csv")
+    models_dir: Path = Path("../models")
     target_col: str = "Y:Titer"
     exclude_cols: tuple[str, ...] = ("Y:Titer", "n_days")
 
 
 def main():
-    root_dir = Path(__file__).resolve().parent
-    config = TrainingConfig(
-        data_path=root_dir / "data" / "train_exp_features.csv",
-        models_dir=root_dir / "models",
-    )
-
+    config = TrainingConfig()
     config.models_dir.mkdir(parents=True, exist_ok=True)
+
     train_df = pd.read_csv(config.data_path, index_col="Exp")
     feature_cols = [col for col in train_df.columns if col not in config.exclude_cols]
 

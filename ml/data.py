@@ -9,6 +9,31 @@ import yaml
 ROOT_DIR = Path(__file__).resolve().parents[1]
 
 
+def request_to_exp_dataframe(
+    timestamps: list[float],
+    values: dict[str, list[float]],
+    exp_name: str = "inference",
+) -> pd.DataFrame:
+    """
+    Convert raw timestamps and variable values into a long-format experiment DataFrame
+    """
+    rows: list[dict[str, object]] = []
+    for i, day in enumerate(timestamps):
+        row: dict[str, object] = {"Exp": exp_name, "Time[day]": day}
+        for col, arr in values.items():
+            if col.startswith("Z:") and i == 0:
+                row[col] = arr[0] if arr else np.nan
+            elif col.startswith("Z:"):
+                row[col] = np.nan
+            elif i < len(arr):
+                row[col] = arr[i]
+            else:
+                row[col] = np.nan
+        rows.append(row)
+
+    return pd.DataFrame(rows)
+
+
 def spec_yml_to_dataframe(
     yaml_path: str | Path, exp_name: str = "inf_example"
 ) -> pd.DataFrame:
@@ -31,19 +56,7 @@ def spec_yml_to_dataframe(
     timestamps = properties.get("timestamps", {}).get("example", [])
     values = properties.get("values", {}).get("example", {})
 
-    rows: list[dict[str, object]] = []
-    for i, day in enumerate(timestamps):
-        row: dict[str, object] = {"Exp": exp_name, "Time[day]": day}
-        for col, arr in values.items():
-            if col.startswith("Z:") and i == 0:
-                row[col] = arr[0]
-            elif col.startswith("Z:"):
-                row[col] = np.nan
-            else:
-                row[col] = arr[i]
-        rows.append(row)
-
-    return pd.DataFrame(rows)
+    return request_to_exp_dataframe(timestamps, values, exp_name=exp_name)
 
 
 def _get_feature_columns(df: pd.DataFrame, prefix: str) -> list[str]:

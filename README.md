@@ -108,16 +108,10 @@ Identifies the day when viable cell density reaches its maximum, marking the tra
 
 ***Note that these two features are highly correlated.***
 
-A list of non-redundant filtered features selected via correlation and multicollinearity pruning: 
+A list of 18 non-redundant filtered features selected via target correlation ($|r| \ge 0.25$) and pairwise multicollinearity pruning ($|r_{\text{pair}}| < 0.85$): 
 
-```python
-'VCD_time_to_peak', 'VCD_growth_rate', 'Lysed_slope', 
-'VCD_auc', 'Lac_auc', 'Z:ExpDuration', 
-'FeedGlc_auc', 'FeedGln_slope', 'VCD_final', 
-'FeedGln_auc', 'Lac_slope', 'FeedGln_final', 
-'ph_shift_reached', 'pH_final', 'FeedGlc_final', 
-'temp_final', 'temp_shift_reached', 'Glc_final', 
-'Z:tempStart'
+```
+'VCD_time_to_peak', 'Lysed_slope', 'VCD_auc', 'Lac_auc', 'Z:ExpDuration', 'FeedGlc_auc', 'FeedGln_slope', 'VCD_final', 'FeedGln_auc', 'Lac_slope', 'FeedGln_final', 'ph_shift_reached', 'pH_final', 'FeedGlc_final', 'temp_final', 'temp_shift_reached', 'Glc_final', 'Z:tempStart'
 ```
 
 ## The Guideline on Selecting Models
@@ -132,28 +126,24 @@ A list of non-redundant filtered features selected via correlation and multicoll
 
 See [baseline.ipynb](./notebook/baseline.ipynb) for baseline model and [test_template.ipynb](./notebook/test_template.ipynb) for test template.
 
-## What Baseline Models Showed: 47 Features vs. 19 Filtered Features
+## What Baseline Models Showed: 47 Features vs. 18 Filtered Features
 
-We evaluated baseline models under 5-fold $\times$ 10-repeat cross-validation comparing the **47 features** against the **19 features** (filtered via target correlation $|r| \ge 0.25$ and pairwise multicollinearity pruning $|r_{\text{pair}}| < 0.85$):
+I evaluated baseline models under 5-fold $\times$ 10-repeat cross-validation comparing the **47 features** against the **18 features** ($|r_{\text{pair}}| < 0.85$):
 
-| Model | $R^2$ (47 features) | $R^2$ (19 filtered features) | $\Delta R^2$ | RRMSE (47 features) | RRMSE (19 filtered features) |
+| Model | $R^2$ (47 features) | $R^2$ (18 filtered features) | $\Delta R^2$ | RRMSE (47 features) | RRMSE (18 filtered features) |
 |---|---|---|---|---|---|
-| **PLS Regression (5 comp.)** | 0.7244 | **0.7737** | **+0.0493** | 26.8% | **24.7%** (Best Linear) |
-| **Ridge Regression** | 0.7616 | **0.7739** | **+0.0123** | 25.1% | **24.8%** |
-| **Linear Regression (MLR)** | 0.6243 | **0.7192** | **+0.0948** | 30.6% | **27.6%** |
-| **Random Forest** | **0.7311** | 0.7107 | -0.0204 | **27.6%** | 28.7% |
-| **Gradient Boosting** | **0.7925** | 0.6987 | -0.0938 | **24.4%** | 29.5% |
-| **XGBoost** | **0.7264** | 0.6422 | -0.0841 | **28.0%** | 31.2% |
+| **PLS (5 comp.)** | 0.7244 | 0.7714 | +0.0470 | 26.8% | 24.6% |
+| **Ridge Regression** | 0.7616 | 0.7679 | +0.0063 | 25.1% | 25.0% |
+| **MLR** | 0.6243 | 0.7238 | +0.0995 | 30.6% | 27.2% |
+| **Random Forest** | 0.7311 | 0.7135 | -0.0176 | 27.6% | 28.6% |
+| **Gradient Boosting** | 0.7925 | 0.7088 | -0.0837 | 24.4% | 29.0% |
+| **XGBoost** | 0.7264 | 0.6486 | -0.0778 | 28.0% | 30.9% |
 
 ### Summary:
-
-- **PLS, Ridge, MLR improve significantly with 19 features**:
-  - PLS $R^2$ increases from 0.724 to 0.774, achieving the lowest linear RRMSE (24.7%).
-  - MLR $R^2$ jumps from 0.624 to 0.719.
-- **Gradient Boosting, XGBoost, RF (tree-based ensemble) perform best on 47 features**:
-  - Gradient Boosting reaches peak performance ($R^2 = 0.793$ & RRMSE = 24.4%).
-  - Decision trees handle linear multicollinearity naturally and utilize subtle non-linear feature interactions across the full feature set.
-- `VCD_time_to_peak` feature (day at which viable cell density peaks) turned out to be the single strongest correlate ($r = 0.75$).
+- **PLS, Ridge, and MLR perform best on the 18 filtered feature set**:
+  - PLS $R^2$ reaches 0.771 with lowest RRMSE 24.6%.
+  - Unregularized MLR $R^2$ increases from 0.624 to 0.724 (+10 percentage points).
+- **Tree Ensembles (GB 0.793, RF 0.731)** perform best on the full 47-feature set where decision tree splits handle non-linear interactions across all raw variables.
 
 ## App for Inference
 

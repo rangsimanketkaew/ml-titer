@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from pathlib import Path
 
 import numpy as np
@@ -117,7 +115,6 @@ def featurize_timeseries(
 FILTERED_FEATURES: list[str] = [
     "n_days",
     "VCD_time_to_peak",
-    "VCD_growth_rate",
     "Lysed_slope",
     "VCD_auc",
     "Lac_auc",

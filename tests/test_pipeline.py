@@ -7,7 +7,6 @@ from fastapi.testclient import TestClient
 
 from main import app
 from ml.data import build_feature_table, spec_yml_to_dataframe
-from spec_yml_to_json import load_runtime_request
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SPEC_PATH = ROOT / "inference_server_spec.yml"
@@ -48,10 +47,12 @@ def test_build_feature_table_produces_expected_feature_values() -> None:
 
 
 def test_predict_endpoint_returns_numeric_prediction() -> None:
-    request_body = load_runtime_request(SPEC_PATH)
-
     client = TestClient(app)
-    response = client.post("/predict", json=request_body)
+    with SPEC_PATH.open("rb") as f:
+        response = client.post(
+            "/predict",
+            files={"file": ("inference_server_spec.yml", f, "application/x-yaml")},
+        )
 
     assert response.status_code == 200, response.text
     payload = response.json()

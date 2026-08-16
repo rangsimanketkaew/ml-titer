@@ -9,7 +9,7 @@ class TrainingConfig(BaseModel):
     data_path: Path = Path("../data/train_exp_features.csv")
     models_dir: Path = Path("../models")
     target_col: str = "Y:Titer"
-    exclude_cols: tuple[str, ...] = ("Y:Titer", "n_days")
+    exclude_cols: tuple[str, ...] = ("Y:Titer",)
 
 
 def main():

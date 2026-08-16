@@ -113,7 +113,6 @@ def featurize_timeseries(
 
 
 FILTERED_FEATURES: list[str] = [
-    "n_days",
     "VCD_time_to_peak",
     "Lysed_slope",
     "VCD_auc",
@@ -161,7 +160,6 @@ def build_feature_table(
         rows.append(
             {
                 "Exp": exp,
-                "n_days": n_days,
                 **z_row,
                 **ts_feats,
                 "temp_shift_reached": float(z_row.get("Z:tempShift", np.nan)) <= n_days,

@@ -37,9 +37,7 @@ async def health_check():
 @app.post("/predict")
 async def predict(features: ModelFeatures):
     request_df = request_to_exp_dataframe(features.timestamps, features.values)
-    feature_df = build_feature_table(request_df).drop(
-        columns=["n_days"], errors="ignore"
-    )
+    feature_df = build_feature_table(request_df, filter_features=True)
 
     feature_matrix = feature_df.to_numpy(dtype=float)
     prediction = inference(MODEL, feature_matrix)

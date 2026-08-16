@@ -40,7 +40,7 @@ line-length = 88
 extend-include = ["*.ipynb"]
 
 [tool.ruff.lint]
-extend-select = ["E501"]
+ignore = ["E501"]
 
 [tool.ruff.format]
 quote-style = "double"

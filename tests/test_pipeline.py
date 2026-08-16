@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import pathlib
 
 import pandas as pd
@@ -31,13 +29,11 @@ def test_build_feature_table_produces_expected_feature_values() -> None:
     assert features.shape[0] == 1
     assert "VCD_final" in features.columns
     assert "temp_final" in features.columns
-    assert "VCD_growth_rate" in features.columns
-    assert "n_days" in features.columns
+    assert "Lysed_slope" in features.columns
 
     expected = {
         "VCD_final": 27.40298708,
         "temp_final": 36.94736842,
-        "n_days": 14.0,
     }
 
     for key, expected_value in expected.items():

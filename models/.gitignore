@@ -1,2 +1,5 @@
 *.joblib
 *.pkl
+
+# include a toy model for testing
+!xgb_model.joblib

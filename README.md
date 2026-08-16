@@ -6,17 +6,44 @@ Interview tasks for ML Engineer position at DataHow
 
 Predict the final mAb product titer of a simulated fed-batch upstream bioprocess, from a mix of scalar process settings and daily time-series process data.
 
-## How I Tackle the Challenge
 
-1. Data analysis to understand the characteristics of the raw data
-2. Cleaning and feature engineering
-3. Develop baseline models based on the nature of the data
-4. Hyperparameter optimization and fine-tune models
-5. Design ML pipeline/architecture
-6. Containerizing ML deployment with Docker and FastAPI
-7. Maintenance, linting and format checking, documentation
+## Pipeline Architecture
 
----
+1. **Raw data validation**: Validate data quality
+2. **Data preparation**: Clean and preprocess data
+3. **Data transformation**: Feature engineering
+4. **Feature storage**: Manage engineered features
+5. **Data versioning**: DVC-based version control
+6. **Baseline model training**: Train baseline model
+7. **Model deployment**: Containerize and deploy model with Uvicorn/Docker
+8. **Model versioning**: Track metrics and version models
+9. **Log storage**: Log model performance
+
+## Project Structure
+
+```
+├── data
+│   ├── *.csv                     # Dataset files
+├── Dockerfile                    # Docker file
+├── inference_server_spec.yml     # Example inference spec yaml
+├── main.py                       # App microservice
+├── ml
+│   ├── data.py                   # Helper functions for data processing
+│   ├── model.py                  # Helper functions for ML
+│   └── train_model.py            # Train ML models
+├── models
+│   ├── *.joblib                  # Pretrained models
+├── notebook
+│   ├── baseline.ipynb            # Baseline model
+│   ├── eda.ipynb                 # Data exploration, cleaning & feature engineering, visualizations
+│   └── test_template.ipynb       # Test model prediction
+├── pyproject.toml                # Project configuration
+├── README.md                     # This file
+├── spec_yml_to_json.py           # Convert inference server yml to JSON file
+├── tests
+│   └── test_pipeline.py          # Pytest functions
+└── uv.lock                       # uv configuration
+```
 
 ## Understanding the Dataset
 
@@ -32,87 +59,64 @@ Predict the final mAb product titer of a simulated fed-batch upstream bioprocess
 - `X:` measured observations
 - `Y:Titer` target (one scalar per experiment)
 
-Each experiment runs for a different duration (7, 8, 9, 10 or 14 days, set by `Z:ExpDuration`). `Z:*` parameters are constant per experiment (only populated on day 0); `W:*` and `X:*` are daily time series recorded for the full duration of each run.
+**See [eda.ipynb](./notebook/eda.ipynb) for exploratory data analysis (EDA)**
 
-### Obstacles
+1. Very small sample size: 
+   - 100 experiments for training (20 held out as the final test set).
+2. Mixed data types: 
+   - static scalar process settings (`Z:*`), time-varying control profiles (`W:*`), and time-varying measurements (`X:*`) of different, ragged lengths (7-14 days).
+3. Strong multicollinearity: 
+   - `Z:*` parameters are generated from a designed experiment (feed start/end, pH/temp start-end-shift are linked)
+   - Time-series summary features (final/max/mean/AUC of the same variable) are highly correlated with each other.
+4. Single scalar target per experiment: 
+   - Titer is measured only at the end, i.e., this is a batch-to-scalar regression problem, not a sequence-to-sequence forecasting problem.
+5. Underlying process is *nonlinear* 
+   - E.g. microbial/cell growth kinetics, feed-limited dynamics, saturation effects
 
-- Variables (input features) are provided in inference spec yaml file, which makes it difficult to use these variables for model inference. Variables should be provided at runtime API request, to increase maintainability and avoid server's heavy load.
+## How I Tackle the Challenge
 
-### Improvement
+1. Data analysis to understand the characteristics of the raw data
+2. Cleaning and feature engineering
+3. Develop baseline models based on the nature of the data
+4. Hyperparameter optimization and fine-tune models
+5. Design ML pipeline/architecture
+6. Containerizing ML deployment with Docker and FastAPI
+7. Maintenance, linting and format checking, documentation
 
-- Create separate repository: (1) data processing and model training, and (2) ML pipeline deployment
+## Challenges of the Training and Test sets
 
-## Model Selection
+- Experiment runs for a different duration (7, 8, 9, or 14 days, set by `Z:ExpDuration`, starting from day 0), while in test set the experiment is recorded for 14 days. This is the experiment duration mismatch. Fortunetely, the goal of this task is to **predict only the titer at the final/day-14 timepoint**, with full days 0–14 already given in test set, and it is not a titer-per-day prediction.
+- Even though zero-padding technique to make experiment 14-day rows is tempting here because it will make training set shape matches the test set shape, but it can cause more problems; e.g. it creates spurious features and zeroes have no meaningful physical meaning. Therefore, I decided to go for **one row per experiment** by compressing an entire experiment feature into a single summary.
+- Small amount of training samples (N=100) could make model prone to overfitting. I frist start with different models and evaluating them using cross-validation technique: linear/optimization-based models like PLS/regularized linear models, multi-linear regression (MLR), tree-based models like Random Forest/Gradient Boosting, XGBoost, and probabilistic-based models like Gaussian Process (GP).
 
-This guideline might be useful for further collaborator/team members.
+**The guideline on selecting models**
 
-1. Start with PLS regression on the engineered per-experiment feature table (as built in Section 2) as an interpretable benchmark, tuning the number of latent components by cross-validated R^2/MAE.
-
+1. Start with PLS regression on the engineered per-experiment feature table as an interpretable benchmark, tuning the number of latent components by cross-validated R^2/MAE.
 2. Use Gradient Boosting / Random Forest as the primary predictive model, because it captures nonlinearity without overfitting on 100 samples when combined with shallow trees, few boosting rounds/strong shrinkage, and rigorous CV (repeated K-fold given the small N).
+3. Use physically meaningful features: AUC/final-value summaries and don't use dozens of redundant statistics.
+4. Use PCA to reduce dimensionality of correlated features and give the most important features.
+5. Consider a Gaussian Process because it is a uncertainty-aware model.  
+6. Consider a hybrid mechanistic + ML model - it is the most scientific option for a process (espeically for bioprocessing) with known cell-growth kinetics.
+7. We should use deep learning (e.g. LSTM or GRU) when we have more training data, or at least use a small model architecture.
 
-3. Tune and select via nested/repeated cross-validation (not a single train/validation split) because with 99 samples a single split has high variance; report CV mean +- std, not a point estimate.
+See [baseline.ipynb](./notebook/baseline.ipynb) for baseline model and [test_template.ipynb](./notebook/test_template.ipynb) for test template.
 
-4. Keep the feature set compact and physically meaningful: prefer AUC/final-value summaries over dozens of redundant statistics, or feed the correlated features through PLS/PCA to reduce dimensionality before the tree model if the feature-to-sample ratio becomes a concern.
+## What Baseline Models Actually Showed
 
-5. Consider a Gaussian Process: because it is a complementary uncertainty-aware model, 
-   
-6. Consider a hybrid mechanistic + ML model - it is the most scientific option for a process with known cell-growth kinetics and is the technique that most bioprocess-modeling teams take once black-box performance plateaus.
+- With the comparison of 7 regressors, cross-validated R2 now spans 0.45-0.83. MLR (unregularized OLS on all 67 engineered features) is the best performer (R2 = 0.83), followed by Gradient Boosting (0.79), Ridge (0.78), PLS (0.75), Random Forest (0.74), XGBoost (0.72), MLR with top 5 features (0.48) and LR (0.45).
+- The LR (using only `VCD_time_to_peak` feature) underperforms the multivariate models (R2 = 0.45, std = 0.31) - confirming that no single summary statistic is sufficient and that combining multiple engineered features helps.
+- Despite the strong feature collinearity (see the heatmap in [eda.ipynb](./notebook/eda.ipynb)), unregularized OLS still comes out on top on cross-validated R2. Collinearity mainly inflates the variance/instability of individual coefficient estimates rather than necessarily hurting held-out predictive accuracy.
+- The domain-informed feature `VCD_time_to_peak` (day at which viable cell density peaks) turned out to be the single strongest correlate (r = 0.75), which tracks titer better than any generic summary statistic. Cumulative glucose feed (`FeedGlc_auc`) and cumulative viable cell density (`VCD_auc`) remain strong predictors, followed by lactate AUC.
+- `Z:ExpDuration` alone already explains a large share of variance (0.62). That means longer runs simply accumulate more product (aMb Titer), but it does not guarantee the best product titer (longer duration is not always => higher titer").
 
-7. We should use deep learning when we have more experiment data available, or use a small model architecture e.g., a small 1D-CNN/GRU for feature extraction from the time series, feeding into a simple regressor head.
+## App for Inference
 
-## Model Comparison
-
-| Model | Fit for this dataset | Reasons |
-|---|---|---|
-| **PLS / PCR / regularized linear regression** | Recommended as the primary/benchmark model | PLS is the standard in bioprocess chemometrics for this setup: small N, collinear regressors, batch time-series unfolded into scalar summaries. It handles multicollinearity natively via latent variables, is highly interpretable (loadings show which process phases/variables drive titer), and is very hard to overfit with only a handful of latent components on 99 samples. |
-| **Random Forest / Gradient Boosting / XGBoost** | Recommended as the primary predictive model | Tree ensembles capture the nonlinearities and interactions (e.g., feed rate x duration) that a linear/PLS model misses, remain fairly robust with small N (via bagging/shrinkage + shallow trees + strong CV), are insensitive to collinearity, and directly provide feature importance. |
-| **Gaussian Process Regression** | Worth trying as a secondary model | Can be used with small-N regression; gives predictive uncertainty, which is valuable when the model will inform experiment design/process optimization decisions (e.g., "how confident are we in this titer prediction?"). |
-| **Deep learning (LSTM/GRU/1D-CNN/Transformer)** | Not recommended given small amount of data volume | With 99 training experiments, a sequence model has far more parameters than data points and will overfit badly. But, it might be used within a *hybrid model* that couples a mechanistic ODE (Monod-type growth/substrate-consumption kinetics) with a small neural correction term. |
-
----
-
-## Pipeline Architecture
-
-1. **Raw data validation**: Validate data quality
-2. **Data preparation**: Clean and preprocess data
-3. **Data transformation**: Feature engineering
-4. **Feature storage**: Manage engineered features
-5. **Data versioning**: DVC-based version control
-6. **Baseline model training**: Train baseline model
-7. **Model deployment**: Containerize and deploy model with microservice
-8. **Model versioning**: Track metrics and version models
-9. **Log storage**: Log model performance
-
-## Project Structure
-
-
-```
-├── data
-│   ├── *.csv               # Dataset files
-├── Dockerfile              # Docker file
-├── inference_server_spec.yml     # Example inference spec yaml
-├── main.py                 # App microservice
-├── ml
-│   ├── data.py             # Helper functions for data processing
-│   └── model.py            # Helper functions for ML
-├── models
-│   ├── *.joblib            # Pretrained models
-├── notebook
-│   ├── baseline.ipynb      # Baseline model
-│   ├── eda.ipynb           # Data exploration, cleaning & feature engineering, visualizations
-│   └── test_template.ipynb     # Test model prediction
-├── pyproject.toml          # Project configuration
-├── README.md               # This file
-├── spec_yml_to_json.py     # Convert inference server yml to JSON file
-├── tests
-│   └── test_pipeline.py    # Pytest functions
-├── train_model.py          # Train models
-└── uv.lock                 # uv configuration
-```
+- **OpenAPI YAML vs. JSON DTO**: Sample inference input data is provided as an example in an OpenAPI spec file (`inference_server_spec.yml`), whereas the FastAPI server requires a JSON payload matching Pydantic DTO. Parsing YAML file on every server request introduces unnecessary disk I/O and heavy parsing overhead on the API server.
+- To solve this problem, I use a separate script `spec_yml_to_json.py` to extract the sample experiment payload into a JSON file (`payload.json`). So clients can send standard JSON POST requests at runtime directly to `/predict`, keeping the microservice fast. In addition, I also implemented a `/predict/file` endpoint in `feat/yaml-file-prediction` branch as alternative, which allows clients to upload `.yml` files directly. This endpoint uses FastAPI's `UploadFile` to receive `.yml` files and parse them through the Pydantic DTO.
 
 ## Get Started
 
-**1. Environment setup**
+### Environment setup
 ```sh
 git clone <repository-url>
 cd datahow-titer-ml
@@ -122,22 +126,30 @@ pip install uv
 uv sync
 ```
 
-**2.1 Deploy model with FastAPI (native)**
+### Launching API Service
+
+An endpoint on the App server using FastAPI framework handles the prediction requests and returns the value predicted by the deployed ML pipeline. The endpoint is server/predict with a **POST** operation.
+
+Uvicorn Server uses the API to serve the prediction requests. 
+
+#### Serve model server with Uvicorn (native)
 ```sh
 # Start microservice
 uv run uvicorn main:app --host 0.0.0.0 --port 8000
 
-# Check status
+# Check if server is healthy
 curl -X GET http://0.0.0.0:8000/health
 
-# Call inference endpoint
+# Make inference request
 uv run python spec_yml_to_json.py > payload.json
 curl -X POST http://0.0.0.0:8000/predict \
     -H "Content-Type: application/json" \
     --data @payload.json
 ```
 
-**2.2 Deploy model with Docker**
+We can also dockerize this server, and final predictions will be served by the Docker container. The file `Dockerfile` contains all the instructions required to build the Docker image.
+
+#### Serve model server with Docker
 ```sh
 # Build image
 docker build -t datahow-titer-ml .
@@ -149,18 +161,14 @@ docker run --rm -p 8000:8000 datahow-titer-ml
 curl -X GET http://localhost:8000/health
 ```
 
-
 ## Development
 
-#### Tech stack
-
-- Environment: uv, ruff
-- Data processing: NumPy, Pandas, Scikit-learn
-- Model development: Scikit-learn, XGBoost
-- Inference microservice: Docker, FastAPI, pyyaml
-- DepOps: CI/CD, pydantic
-
-#### Architecture
+**Tech stack**
+- **Environment**: Python 3.11-3.13, uv, ruff
+- **Data processing**: NumPy, Pandas, Scikit-learn
+- **Model development**: Scikit-learn, XGBoost
+- **Inference microservice**: Docker, FastAPI, pyyaml
+- **DepOps**: CI/CD, pydantic
 
 ## Author
 

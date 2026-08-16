@@ -7,14 +7,7 @@ authors = [
     { name = "Rangsiman Ketkaew", email = "rangsiman1993@gmail.com" }
 ]
 requires-python = ">=3.10"
-dependencies = [
-    "numpy>=1.26.0",
-    "pandas>=2.0.0",
-    "matplotlib>=3.7.0",
-    "seaborn>=0.12.0",
-    "scipy>=1.10.0",
-    "scikit-learn>=1.3.0",
-]
+dependencies = []
 
 [project.scripts]
 datahow-titer-ml = "datahow_titer_ml:main"

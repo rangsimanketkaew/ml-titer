@@ -85,11 +85,34 @@ Predict the final mAb product titer of a simulated fed-batch upstream bioprocess
 
 ## Challenges of the Training and Test sets
 
-- Experiment runs for a different duration (7, 8, 9, or 14 days, set by `Z:ExpDuration`, starting from day 0), while in test set the experiment is recorded for 14 days. This is the experiment duration mismatch. Fortunetely, the goal of this task is to **predict only the titer at the final/day-14 timepoint**, with full days 0–14 already given in test set, and it is not a titer-per-day prediction.
+- **Experiment duration mismatch**: Experiment runs for a different duration (7, 8, 9, or 14 days, set by `Z:ExpDuration`, starting from day 0), while in test set the experiment is recorded for 14 days. Fortunetely, the goal of this task is to **predict only the titer at the final/day-14 timepoint**, with full days 0–14 already given in test set, and it is not a titer-per-day prediction.
 - Even though zero-padding technique to make experiment 14-day rows is tempting here because it will make training set shape matches the test set shape, but it can cause more problems; e.g. it creates spurious features and zeroes have no meaningful physical meaning. Therefore, I decided to go for **one row per experiment** by compressing an entire experiment feature into a single summary.
-- Small amount of training samples (N=100) could make model prone to overfitting. I frist start with different models and evaluating them using cross-validation technique: linear/optimization-based models like PLS/regularized linear models, multi-linear regression (MLR), tree-based models like Random Forest/Gradient Boosting, XGBoost, and probabilistic-based models like Gaussian Process (GP).
+- **Parameter mismatches within the dataset**: For example, in the first experiment, final Temp on day 0 (35.07070707) does not match the temperature on last day (37.28282828). In fact, they are supposed to be the same value. 
+- **Overfitting**: Small amount of training samples (N=100) could make model prone to overfitting. I frist start with different models and evaluating them using cross-validation technique: linear/optimization-based models like PLS/regularized linear models, multi-linear regression (MLR), tree-based models like Random Forest/Gradient Boosting, XGBoost, and probabilistic-based models like Gaussian Process (GP).
 
-**The guideline on selecting models**
+## Domain-Informed (Engineered) Feature
+
+The following are two new, important, domain-based features computed in EDA from time-series observations $X(t)$ and controls $W(t)$:
+
+### 1. Specific Cell Growth Rate (`VCD_growth_rate`)
+Quantifies overall net logarithmic cell growth rate across the experiment duration:
+
+$$\text{VCD\_growth\_rate} = \frac{1}{t_{\text{final}}} \ln\left(\frac{\max(\text{VCD}_{\text{final}}, \, 10^{-6})}{\max(\text{VCD}_0, \, 10^{-6})}\right)$$
+
+### 2. Time to Peak Viable Cell Density (`VCD_time_to_peak`)
+Identifies the day when viable cell density reaches its maximum, marking the transition into stationary/death phase:
+
+$$\text{VCD\_time\_to\_peak} = t_{\arg\max_i \text{VCD}_i}$$
+
+***Note that these two features are highly correlated***
+
+A complete list of 67 engineered features (in the order of colume name): 
+
+```
+'Z:FeedStart', 'Z:FeedEnd', 'Z:FeedRateGlc', 'Z:FeedRateGln', 'Z:phStart', 'Z:phEnd', 'Z:phShift', 'Z:tempStart', 'Z:tempEnd', 'Z:tempShift', 'Z:Stir', 'Z:DO', 'Z:ExpDuration', 'temp_final', 'temp_max', 'temp_mean', 'temp_auc', 'temp_slope', 'pH_final', 'pH_max', 'pH_mean', 'pH_auc', 'pH_slope', 'FeedGlc_final', 'FeedGlc_max', 'FeedGlc_mean', 'FeedGlc_auc', 'FeedGlc_slope', 'FeedGln_final', 'FeedGln_max', 'FeedGln_mean', 'FeedGln_auc', 'FeedGln_slope', 'VCD_final', 'VCD_max', 'VCD_mean', 'VCD_auc', 'VCD_slope', 'Glc_final', 'Glc_max', 'Glc_mean', 'Glc_auc', 'Glc_slope', 'Gln_final', 'Gln_max', 'Gln_mean', 'Gln_auc', 'Gln_slope', 'Amm_final', 'Amm_max', 'Amm_mean', 'Amm_auc', 'Amm_slope', 'Lac_final', 'Lac_max', 'Lac_mean', 'Lac_auc', 'Lac_slope', 'Lysed_final', 'Lysed_max', 'Lysed_mean', 'Lysed_auc', 'Lysed_slope', 'VCD_growth_rate', 'VCD_time_to_peak', 'temp_shift_reached', 'ph_shift_reached'
+```
+
+## The Guideline on Selecting Models
 
 1. Start with PLS regression on the engineered per-experiment feature table as an interpretable benchmark, tuning the number of latent components by cross-validated R^2/MAE.
 2. Use Gradient Boosting / Random Forest as the primary predictive model, because it captures nonlinearity without overfitting on 100 samples when combined with shallow trees, few boosting rounds/strong shrinkage, and rigorous CV (repeated K-fold given the small N).

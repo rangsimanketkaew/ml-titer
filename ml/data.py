@@ -96,8 +96,6 @@ def featurize_timeseries(
         y = group[c].to_numpy(dtype=float)
         name = c.split(":", 1)[1]
         feats[f"{name}_final"] = float(y[-1])
-        feats[f"{name}_max"] = float(np.nanmax(y))
-        feats[f"{name}_mean"] = float(np.nanmean(y))
         feats[f"{name}_auc"] = float(np.trapezoid(y, t)) if len(t) > 1 else 0.0
         slope = float(np.polyfit(t, y, 1)[0]) if len(t) > 1 else 0.0
         feats[f"{name}_slope"] = slope
@@ -116,11 +114,36 @@ def featurize_timeseries(
     return feats
 
 
+FILTERED_FEATURES: list[str] = [
+    "n_days",
+    "VCD_time_to_peak",
+    "VCD_growth_rate",
+    "Lysed_slope",
+    "VCD_auc",
+    "Lac_auc",
+    "Z:ExpDuration",
+    "FeedGlc_auc",
+    "FeedGln_slope",
+    "VCD_final",
+    "FeedGln_auc",
+    "Lac_slope",
+    "FeedGln_final",
+    "ph_shift_reached",
+    "pH_final",
+    "FeedGlc_final",
+    "temp_final",
+    "temp_shift_reached",
+    "Glc_final",
+    "Z:tempStart",
+]
+
+
 def build_feature_table(
     df: pd.DataFrame,
     z_cols: list[str] | None = None,
     w_cols: list[str] | None = None,
     x_cols: list[str] | None = None,
+    filter_features: bool = True,
 ) -> pd.DataFrame:
     """
     Collapse long (Exp, day) data into one row per experiment
@@ -149,4 +172,10 @@ def build_feature_table(
             }
         )
 
-    return pd.DataFrame(rows).set_index("Exp")
+    result = pd.DataFrame(rows).set_index("Exp")
+    if filter_features:
+        cols_to_keep = [c for c in FILTERED_FEATURES if c in result.columns]
+        if "Y:Titer" in result.columns:
+            cols_to_keep.append("Y:Titer")
+        result = result[cols_to_keep]
+    return result

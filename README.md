@@ -108,10 +108,16 @@ Identifies the day when viable cell density reaches its maximum, marking the tra
 
 ***Note that these two features are highly correlated.***
 
-A complete list of 67 engineered features (in the order of column names): 
+A list of non-redundant filtered features selected via correlation and multicollinearity pruning: 
 
-```
-'Z:FeedStart', 'Z:FeedEnd', 'Z:FeedRateGlc', 'Z:FeedRateGln', 'Z:phStart', 'Z:phEnd', 'Z:phShift', 'Z:tempStart', 'Z:tempEnd', 'Z:tempShift', 'Z:Stir', 'Z:DO', 'Z:ExpDuration', 'temp_final', 'temp_max', 'temp_mean', 'temp_auc', 'temp_slope', 'pH_final', 'pH_max', 'pH_mean', 'pH_auc', 'pH_slope', 'FeedGlc_final', 'FeedGlc_max', 'FeedGlc_mean', 'FeedGlc_auc', 'FeedGlc_slope', 'FeedGln_final', 'FeedGln_max', 'FeedGln_mean', 'FeedGln_auc', 'FeedGln_slope', 'VCD_final', 'VCD_max', 'VCD_mean', 'VCD_auc', 'VCD_slope', 'Glc_final', 'Glc_max', 'Glc_mean', 'Glc_auc', 'Glc_slope', 'Gln_final', 'Gln_max', 'Gln_mean', 'Gln_auc', 'Gln_slope', 'Amm_final', 'Amm_max', 'Amm_mean', 'Amm_auc', 'Amm_slope', 'Lac_final', 'Lac_max', 'Lac_mean', 'Lac_auc', 'Lac_slope', 'Lysed_final', 'Lysed_max', 'Lysed_mean', 'Lysed_auc', 'Lysed_slope', 'VCD_growth_rate', 'VCD_time_to_peak', 'temp_shift_reached', 'ph_shift_reached'
+```python
+'VCD_time_to_peak', 'VCD_growth_rate', 'Lysed_slope', 
+'VCD_auc', 'Lac_auc', 'Z:ExpDuration', 
+'FeedGlc_auc', 'FeedGln_slope', 'VCD_final', 
+'FeedGln_auc', 'Lac_slope', 'FeedGln_final', 
+'ph_shift_reached', 'pH_final', 'FeedGlc_final', 
+'temp_final', 'temp_shift_reached', 'Glc_final', 
+'Z:tempStart'
 ```
 
 ## The Guideline on Selecting Models
@@ -126,13 +132,28 @@ A complete list of 67 engineered features (in the order of column names):
 
 See [baseline.ipynb](./notebook/baseline.ipynb) for baseline model and [test_template.ipynb](./notebook/test_template.ipynb) for test template.
 
-## What Baseline Models Actually Showed
+## What Baseline Models Showed: 47 Features vs. 19 Filtered Features
 
-- With the comparison of 7 regressors, cross-validated R2 now spans 0.45-0.83. MLR (unregularized OLS on all 67 engineered features) is the best performer (R2 = 0.83), followed by Gradient Boosting (0.79), Ridge (0.78), PLS (0.75), Random Forest (0.74), XGBoost (0.72), MLR with top 5 features (0.48), and LR (0.45).
-- The LR (using only `VCD_time_to_peak` feature) underperforms the multivariate models (R2 = 0.45, std = 0.31), confirming that no single summary statistic is sufficient and that combining multiple engineered features helps.
-- Despite the strong feature collinearity (see the heatmap in [eda.ipynb](./notebook/eda.ipynb)), unregularized OLS still comes out on top on cross-validated R2. Collinearity mainly inflates the variance/instability of individual coefficient estimates rather than necessarily hurting held-out predictive accuracy.
-- The domain-informed feature `VCD_time_to_peak` (day at which viable cell density peaks) turned out to be the single strongest correlate (r = 0.75), which tracks titer better than any generic summary statistic. Cumulative glucose feed (`FeedGlc_auc`) and cumulative viable cell density (`VCD_auc`) remain strong predictors, followed by lactate AUC.
-- `Z:ExpDuration` alone already explains a large share of variance (0.62). That means longer runs simply accumulate more product (aMb Titer), but it does not guarantee the best product titer (longer duration is not always => higher titer).
+We evaluated baseline models under 5-fold $\times$ 10-repeat cross-validation comparing the **47 features** against the **19 features** (filtered via target correlation $|r| \ge 0.25$ and pairwise multicollinearity pruning $|r_{\text{pair}}| < 0.85$):
+
+| Model | $R^2$ (47 features) | $R^2$ (19 filtered features) | $\Delta R^2$ | RRMSE (47 features) | RRMSE (19 filtered features) |
+|---|---|---|---|---|---|
+| **PLS Regression (5 comp.)** | 0.7244 | **0.7737** | **+0.0493** | 26.8% | **24.7%** (Best Linear) |
+| **Ridge Regression** | 0.7616 | **0.7739** | **+0.0123** | 25.1% | **24.8%** |
+| **Linear Regression (MLR)** | 0.6243 | **0.7192** | **+0.0948** | 30.6% | **27.6%** |
+| **Random Forest** | **0.7311** | 0.7107 | -0.0204 | **27.6%** | 28.7% |
+| **Gradient Boosting** | **0.7925** | 0.6987 | -0.0938 | **24.4%** | 29.5% |
+| **XGBoost** | **0.7264** | 0.6422 | -0.0841 | **28.0%** | 31.2% |
+
+### Summary:
+
+- **PLS, Ridge, MLR improve significantly with 19 features**:
+  - PLS $R^2$ increases from 0.724 to 0.774, achieving the lowest linear RRMSE (24.7%).
+  - MLR $R^2$ jumps from 0.624 to 0.719.
+- **Gradient Boosting, XGBoost, RF (tree-based ensemble) perform best on 47 features**:
+  - Gradient Boosting reaches peak performance ($R^2 = 0.793$ & RRMSE = 24.4%).
+  - Decision trees handle linear multicollinearity naturally and utilize subtle non-linear feature interactions across the full feature set.
+- `VCD_time_to_peak` feature (day at which viable cell density peaks) turned out to be the single strongest correlate ($r = 0.75$).
 
 ## App for Inference
 

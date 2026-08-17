@@ -1,13 +1,11 @@
 # Predicting Titer of a Simulated Upstream Bioprocess
 
-Interview tasks for ML Engineer position at DataHow
-
 ## Task
 
-Predict the final mAb product titer of a simulated fed-batch upstream bioprocess from a mix of scalar process settings and daily time-series process data.
+Predict **the final mAb product titer** of a simulated fed-batch upstream bioprocess from a mix of scalar process settings and daily time-series process data.
 
 
-## Pipeline Architecture
+## Workflow
 
 1. **Raw data validation**: Validate data quality
 2. **Data preparation**: Clean and preprocess data
@@ -18,6 +16,9 @@ Predict the final mAb product titer of a simulated fed-batch upstream bioprocess
 7. **Model deployment**: Containerize and deploy model with Uvicorn/Docker
 8. **Model versioning**: Track metrics and version models
 9. **Log storage**: Log model performance
+
+I use Notion with Kanban to track my workflow for this project.
+Link: https://app.notion.com/p/Predicting-mAb-Titer-Tasks-to-Done-220ea55998d882d1aec7019f8abeef3b
 
 ## Project Structure
 
@@ -111,7 +112,12 @@ Identifies the day when viable cell density reaches its maximum, marking the tra
 A list of 18 non-redundant filtered features selected via target correlation ($|r| \ge 0.25$) and pairwise multicollinearity pruning ($|r_{\text{pair}}| < 0.85$): 
 
 ```
-'VCD_time_to_peak', 'Lysed_slope', 'VCD_auc', 'Lac_auc', 'Z:ExpDuration', 'FeedGlc_auc', 'FeedGln_slope', 'VCD_final', 'FeedGln_auc', 'Lac_slope', 'FeedGln_final', 'ph_shift_reached', 'pH_final', 'FeedGlc_final', 'temp_final', 'temp_shift_reached', 'Glc_final', 'Z:tempStart'
+'VCD_time_to_peak', 'Lysed_slope', 'VCD_auc',
+'Lac_auc', 'Z:ExpDuration', 'FeedGlc_auc',
+'FeedGln_slope', 'VCD_final', 'FeedGln_auc',
+'Lac_slope', 'FeedGln_final', 'ph_shift_reached',
+'pH_final', 'FeedGlc_final', 'temp_final',
+'temp_shift_reached', 'Glc_final', 'Z:tempStart'
 ```
 
 ## The Guideline on Selecting Models
@@ -145,6 +151,11 @@ I evaluated baseline models under 5-fold $\times$ 10-repeat cross-validation com
   - Unregularized MLR $R^2$ increases from 0.624 to 0.724 (+10 percentage points).
 - **Tree Ensembles (GB 0.793, RF 0.731)** perform best on the full 47-feature set where decision tree splits handle non-linear interactions across all raw variables.
 
+### Top Choice
+
+- **Best baseline model**: PLS with 5 components ($\text{R}^2 = 0.7714$, $\text{RRMSE} = 24.6%$).
+- **Reason**: It handles multicollinearity in bioprocess features effectively.
+
 ## App for Inference
 
 - **OpenAPI YAML vs. JSON DTO**: Sample inference input data is provided as an example in an OpenAPI spec file (`inference_server_spec.yml`), whereas the FastAPI server requires a JSON payload matching a Pydantic DTO. Parsing YAML file on every server request introduces unnecessary disk I/O and heavy parsing overhead on the API server.
@@ -155,7 +166,7 @@ I evaluated baseline models under 5-fold $\times$ 10-repeat cross-validation com
 ### Environment setup
 ```sh
 git clone <repository-url>
-cd datahow-titer-ml
+cd ml-titer
 python -m venv .venv
 source .venv/bin/activate
 pip install uv
@@ -188,10 +199,10 @@ We can also dockerize this server, and final predictions will be served by the D
 #### Serve model server with Docker
 ```sh
 # Build image
-docker build -t datahow-titer-ml .
+docker build -t ml-titer .
 
 # Run container
-docker run --rm -p 8000:8000 datahow-titer-ml
+docker run --rm -p 8000:8000 ml-titer
 
 # Health check
 curl -X GET http://localhost:8000/health
@@ -200,12 +211,60 @@ curl -X GET http://localhost:8000/health
 ## Development
 
 **Tech stack**
-- **Environment**: Python 3.11-3.13, uv, ruff
+- **Environment**: Python 3.11+, uv, ruff
 - **Data processing**: NumPy, Pandas, Scikit-learn
 - **Model development**: Scikit-learn, XGBoost
-- **Inference microservice**: Docker, FastAPI, pyyaml
-- **DepOps**: CI/CD, pydantic
+- **Inference microservice**: Docker, FastAPI, Uvicorn, PyYAML
+- **DevOps**: CI/CD, Pydantic
+
+### Architecture Design of ML Inference Microservice
+
+```
+        [ Client Inference Request ]
+                      |  (HTTP POST /predict with JSON payload*)
+                      v
+
+          [ FastAPI API Gateway ] 
+  (Validates request schema via Pydantic DTO)
+                      │
+                      v
+
+  [ Data preprocessing & Feature engineering ]
+(Reconstructs experiment time-series DataFrame)
+      (Computes slopes, AUCs, etc. )
+   (Filters 18 non-redundant features)
+                      │
+                      v
+
+                [ Inference ]
+   (Deserializes trained model via Joblib)
+   (Executes scalar mAb Titer prediction)
+                      │
+                      v
+ 
+     [ Response {"prediction": float} ]
+```
+
+**JSON payload can be generated from the `spec_yml_to_json.py` script.*
+
+#### Pipeline Components & Tech Stack Details
+
+1. **API Gateway & Schema Validation** (`FastAPI`, `Pydantic v2`, `Uvicorn`, `Docker`)
+   - Receives HTTP `POST` requests at `/predict` with bioprocess daily time-series data (`timestamps` and parameter `values`).
+   - Uses Pydantic data transfer objects (`ModelFeatures`) to enforce strict input data validation and type checking.
+   - Served asynchronously via Uvicorn ASGI server containerized inside Docker.
+
+2. **Feature Engineering Pipeline** (`Pandas`, `NumPy`, `ml.data`)
+   - **Data Transformation** (`request_to_exp_dataframe`): Converts JSON time-series payload into structured pandas DataFrames per experiment.
+   - **Feature Extraction** (`build_feature_table`): Dynamically computes summary kinetic features including slopes, area under curve (AUCs), final day values, peak times (`VCD_time_to_peak`), and temperature/pH shift boolean flags.
+   - **Feature Selection**: Selects the top 18 non-redundant features matching model training specifications.
+
+3. **Inference & Serving Engine** (`Joblib`, `Scikit-learn` / `XGBoost`, `ml.model`)
+   - Loads the serialized model artifact (`models/xgb_model.joblib`) into memory at server startup using Joblib.
+   - Transforms 2D NumPy feature vectors and computes target mAb titer predictions (`inference`).
+   - Returns a structured JSON response `{"prediction": float}` to the client.
 
 ## Author
 
 Rangsiman Ketkaew
+

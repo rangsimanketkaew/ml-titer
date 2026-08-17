@@ -8,7 +8,7 @@ from ml.data import build_feature_table, request_to_exp_dataframe
 from ml.model import inference, load_model
 
 ROOT_DIR = Path(__file__).resolve().parent
-MODEL_PATH = ROOT_DIR / "models" / "xgb_model.joblib"
+MODEL_PATH = ROOT_DIR / "models" / "pls_model.joblib"
 MODEL = load_model(MODEL_PATH)
 
 

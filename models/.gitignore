@@ -2,4 +2,6 @@
 *.pkl
 
 # include a toy model for testing
+!mlr_model.joblib
 !xgb_model.joblib
+!pls_model.joblib

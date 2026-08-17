@@ -17,8 +17,127 @@ Predict **the final mAb product titer** of a simulated fed-batch upstream biopro
 8. **Model versioning**: Track metrics and version models
 9. **Log storage**: Log model performance
 
-I use Notion with Kanban to track my workflow for this project.
+I use Notion with Kanban to track tasks' status for this project.
 Link: https://app.notion.com/p/Predicting-mAb-Titer-Tasks-to-Done-220ea55998d882d1aec7019f8abeef3b
+
+> Useful materials for learning Titer prediction and bioprocess:
+> 1. https://www.sciencedirect.com/science/article/pii/S1369703X23000086
+> 2. https://datahow.ch/model-based-upstream-process-optimization/
+
+## Inference App
+
+### Environment Setup
+```sh
+git clone <repository-url>
+cd ml-titer
+python -m venv .venv
+source .venv/bin/activate
+pip install uv
+uv sync
+```
+
+### Serve Model Server with Uvicorn
+
+An endpoint on the App server using FastAPI framework handles the prediction requests and returns the value predicted by the deployed ML pipeline. The endpoint is server/predict with a **POST** operation.
+
+1) Use Uvicorn Server
+```sh
+# Start microservice
+uv run uvicorn main:app --host 0.0.0.0 --port 8000
+```
+
+2) Use Docker to dockerize this server. The file `Dockerfile` contains all the instructions required to build the Docker image.
+```sh
+# Build image
+docker build -t ml-titer .
+# Then run container
+docker run --rm -p 8000:8000 ml-titer
+```
+
+You can visit `http://localhost:8000/docs` to see the API documentation.
+
+### Health Check (`GET /health`)
+```sh
+curl -X GET http://0.0.0.0:8000/health
+```
+
+**Response**
+```json
+{
+  "status": "healthy"
+}
+```
+
+### List Availabel Models (`GET /models`)
+```sh
+curl http://localhost:8000/models
+```
+
+**Response**
+```json
+{
+  "active_model": "pls_model.joblib",
+  "available_models": [
+    {
+      "id": "mlr",
+      "algorithm": "Multiple Linear Regression (MLR)",
+      "file": "mlr_model.joblib"
+    },
+    {
+      "id": "pls",
+      "algorithm": "Partial Least Squares (PLS)",
+      "file": "pls_model.joblib"
+    },
+    {
+      "id": "xgb",
+      "algorithm": "XGBoost Regressor",
+      "file": "xgb_model.joblib"
+    }
+  ]
+}
+```
+
+### Inference Request (`POST /predict`)
+
+**Create payload from YAML file**
+```sh
+uv run python spec_yml_to_json.py > payload.json
+```
+
+Example `payload.json` :
+```json
+{
+  "model": "pls",        # Options: mlr, pls, xgb
+  "timestamps": [...],
+  "values": {...},
+}
+```
+
+**Make inference request**
+```sh
+curl -X POST http://0.0.0.0:8000/predict \
+    -H "Content-Type: application/json" \
+    --data @payload.json
+```
+
+**Response**
+```json
+{
+  "status": "success",
+  "prediction": 2541.33,
+  "unit": "mg/L",
+  "uncertainty": 390.24,
+  "confidence_interval": {
+    "lower_bound": 2151.09,
+    "upper_bound": 2931.57
+  },
+  "model_info": {
+    "name": "PLSRegression",
+    "version": "1.0.0",
+    "file": "pls_model.joblib"
+  }
+}
+```
 
 ## Project Structure
 
@@ -31,18 +150,18 @@ Link: https://app.notion.com/p/Predicting-mAb-Titer-Tasks-to-Done-220ea55998d882
 ├── ml
 │   ├── data.py                   # Helper functions for data processing
 │   ├── model.py                  # Helper functions for ML
-│   └── train_model.py            # Train ML models
+│   └── train_model.py            # Script to train models for inference request
 ├── models
-│   ├── *.joblib                  # Pretrained models
+│   ├── *.joblib                  # Pretrained models for inference request
 ├── notebook
 │   ├── baseline.ipynb            # Baseline model
 │   ├── eda.ipynb                 # Data exploration, cleaning & feature engineering, visualizations
 │   └── test_template.ipynb       # Test model prediction
 ├── pyproject.toml                # Project configuration
 ├── README.md                     # This file
-├── spec_yml_to_json.py           # Convert inference server yml to JSON file
+├── spec_yml_to_json.py           # Script to convert inference server yml to JSON file
 ├── tests
-│   └── test_pipeline.py          # Pytest functions
+│   ├── test_*.py                 # Pytest functions
 └── uv.lock                       # uv configuration
 ```
 
@@ -130,8 +249,6 @@ A list of 18 non-redundant filtered features selected via target correlation ($|
 6. Consider a hybrid mechanistic + ML model - it is the most scientific option for a process (especially for bioprocessing) with known cell-growth kinetics.
 7. We should use deep learning (e.g. LSTM or GRU) when we have more training data, or at least use a small model architecture.
 
-See [baseline.ipynb](./notebook/baseline.ipynb) for baseline model and [test_template.ipynb](./notebook/test_template.ipynb) for test template.
-
 ## What Baseline Models Showed: 47 Features vs. 18 Filtered Features
 
 I evaluated baseline models under 5-fold $\times$ 10-repeat cross-validation comparing the **47 features** against the **18 features** ($|r_{\text{pair}}| < 0.85$):
@@ -144,6 +261,8 @@ I evaluated baseline models under 5-fold $\times$ 10-repeat cross-validation com
 | **Random Forest** | 0.7311 | 0.7135 | -0.0176 | 27.6% | 28.6% |
 | **Gradient Boosting** | 0.7925 | 0.7088 | -0.0837 | 24.4% | 29.0% |
 | **XGBoost** | 0.7264 | 0.6486 | -0.0778 | 28.0% | 30.9% |
+
+**See [baseline.ipynb](./notebook/baseline.ipynb) for baseline model and [test_template.ipynb](./notebook/test_template.ipynb) for test template.**
 
 ### Summary:
 - **PLS, Ridge, and MLR perform best on the 18 filtered feature set**:
@@ -161,61 +280,16 @@ I evaluated baseline models under 5-fold $\times$ 10-repeat cross-validation com
 - **OpenAPI YAML vs. JSON DTO**: Sample inference input data is provided as an example in an OpenAPI spec file (`inference_server_spec.yml`), whereas the FastAPI server requires a JSON payload matching a Pydantic DTO. Parsing YAML file on every server request introduces unnecessary disk I/O and heavy parsing overhead on the API server.
 - To solve this problem, I use a separate script `spec_yml_to_json.py` to extract the sample experiment payload into a JSON file (`payload.json`). So clients can send standard JSON POST requests at runtime directly to `/predict`, keeping the microservice fast. In addition, I also implemented a `/predict/file` endpoint in `feat/yaml-file-prediction` branch as an alternative, which allows clients to upload `.yml` files directly. This endpoint uses FastAPI's `UploadFile` to receive `.yml` files and parse them through the Pydantic DTO.
 
-## Get Started
-
-### Environment setup
-```sh
-git clone <repository-url>
-cd ml-titer
-python -m venv .venv
-source .venv/bin/activate
-pip install uv
-uv sync
-```
-
-### Launching API Service
-
-An endpoint on the App server using FastAPI framework handles the prediction requests and returns the value predicted by the deployed ML pipeline. The endpoint is server/predict with a **POST** operation.
-
-Uvicorn Server uses the API to serve the prediction requests. 
-
-#### Serve model server with Uvicorn (native)
-```sh
-# Start microservice
-uv run uvicorn main:app --host 0.0.0.0 --port 8000
-
-# Check if server is healthy
-curl -X GET http://0.0.0.0:8000/health
-
-# Make inference request
-uv run python spec_yml_to_json.py > payload.json
-curl -X POST http://0.0.0.0:8000/predict \
-    -H "Content-Type: application/json" \
-    --data @payload.json
-```
-
-We can also dockerize this server, and final predictions will be served by the Docker container. The file `Dockerfile` contains all the instructions required to build the Docker image.
-
-#### Serve model server with Docker
-```sh
-# Build image
-docker build -t ml-titer .
-
-# Run container
-docker run --rm -p 8000:8000 ml-titer
-
-# Health check
-curl -X GET http://localhost:8000/health
-```
-
 ## Development
 
 **Tech stack**
 - **Environment**: Python 3.11+, uv, ruff
 - **Data processing**: NumPy, Pandas, Scikit-learn
+- **Statistical inference**: MAPIE
 - **Model development**: Scikit-learn, XGBoost
 - **Inference microservice**: Docker, FastAPI, Uvicorn, PyYAML
-- **DevOps**: CI/CD, Pydantic
+- **DevOps**: CI/CD, GitHub Actions, Pydantic, Pytest
+- **Workflow tracking**: Notion
 
 ### Architecture Design of ML Inference Microservice
 
@@ -236,35 +310,35 @@ curl -X GET http://localhost:8000/health
                       │
                       v
 
-                [ Inference ]
-   (Deserializes trained model via Joblib)
-   (Executes scalar mAb Titer prediction)
+          [ Inference & Uncertainty ]
+    (Deserializes trained model via Joblib)
+    (Executes scalar mAb Titer prediction)
+    (Calculates 95% CI uncertainty via MAPIE)
                       │
                       v
  
-     [ Response {"prediction": float} ]
+          [ Detailed JSON Response ]
 ```
 
 **JSON payload can be generated from the `spec_yml_to_json.py` script.*
 
-#### Pipeline Components & Tech Stack Details
+#### Pipeline Components
 
-1. **API Gateway & Schema Validation** (`FastAPI`, `Pydantic v2`, `Uvicorn`, `Docker`)
-   - Receives HTTP `POST` requests at `/predict` with bioprocess daily time-series data (`timestamps` and parameter `values`).
-   - Uses Pydantic data transfer objects (`ModelFeatures`) to enforce strict input data validation and type checking.
-   - Served asynchronously via Uvicorn ASGI server containerized inside Docker.
+1. **API Gateway** (`FastAPI`, `Pydantic`, `Uvicorn`, `Docker`)
+   - Receive requests at `/predict` with bioprocess daily time-series data (`timestamps` and parameter `values`).
+   - Use Pydantic DTO to enforce strict input data validation and type checking.
+   - Serve asynchronously via Uvicorn server containerized inside Docker.
 
-2. **Feature Engineering Pipeline** (`Pandas`, `NumPy`, `ml.data`)
-   - **Data Transformation** (`request_to_exp_dataframe`): Converts JSON time-series payload into structured pandas DataFrames per experiment.
-   - **Feature Extraction** (`build_feature_table`): Dynamically computes summary kinetic features including slopes, area under curve (AUCs), final day values, peak times (`VCD_time_to_peak`), and temperature/pH shift boolean flags.
-   - **Feature Selection**: Selects the top 18 non-redundant features matching model training specifications.
+2. **Feature Engineering Pipeline**
+   - **Data Transformation** (`request_to_exp_dataframe`): Convert JSON payload into structured pandas DataFrames per experiment.
+   - **Feature Extraction** (`build_feature_table`): Dynamically compute meaningful features including kinetic features.
+   - **Feature Selection**: Select the top 18 non-redundant features.
 
-3. **Inference & Serving Engine** (`Joblib`, `Scikit-learn` / `XGBoost`, `ml.model`)
-   - Loads the serialized model artifact (`models/xgb_model.joblib`) into memory at server startup using Joblib.
-   - Transforms 2D NumPy feature vectors and computes target mAb titer predictions (`inference`).
-   - Returns a structured JSON response `{"prediction": float}` to the client.
+3. **Inference & Conformal Uncertainty** (`MAPIE`, `Joblib`, `Scikit-learn` / `XGBoost`)
+   - Load serialized model artifacts (`models/*.joblib`) into memory at server startup using Joblib.
+   - Use **MAPIE** (`SplitConformalRegressor`) to calculate model-agnostic prediction uncertainty and 95% confidence intervals.
+   - Return a JSON response containing titer prediction, margin of error (`uncertainty`), confidence bounds, and model metadata.
 
 ## Author
 
 Rangsiman Ketkaew
-

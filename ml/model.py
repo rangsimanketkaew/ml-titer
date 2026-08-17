@@ -2,6 +2,7 @@ from pathlib import Path
 
 import joblib
 import numpy as np
+from mapie.regression import SplitConformalRegressor
 from pydantic import BaseModel, ConfigDict
 from sklearn.cross_decomposition import PLSRegression
 from sklearn.linear_model import LinearRegression
@@ -21,48 +22,78 @@ class ModelMetrics(BaseModel):
 
 
 def _prepare_xy(X, y):
+    """
+    Convert input data to numpy arrays
+    """
     return np.asarray(X, dtype=float), np.asarray(y, dtype=float).ravel()
 
 
-def train_mlr_model(X_train: np.ndarray, y_train: np.ndarray) -> Pipeline:
+def train_mlr_model(
+    X_train: np.ndarray, y_train: np.ndarray, confidence_level: float = 0.95
+) -> SplitConformalRegressor:
     """
     Train a scaled multiple linear regression model
     """
     X_train, y_train = _prepare_xy(X_train, y_train)
 
-    model = Pipeline([("scaler", StandardScaler()), ("regressor", LinearRegression())])
-    model.fit(X_train, y_train)
-    return model
+    base_model = Pipeline(
+        [("scaler", StandardScaler()), ("regressor", LinearRegression())]
+    )
+    base_model.fit(X_train, y_train)
+
+    mapie_model = SplitConformalRegressor(
+        estimator=base_model, confidence_level=confidence_level, prefit=True
+    )
+    mapie_model.conformalize(X_train, y_train)
+
+    return mapie_model
 
 
 def train_pls_model(
-    X_train: np.ndarray, y_train: np.ndarray, n_components: int = 5
-) -> PLSRegression:
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+    n_components: int = 5,
+    confidence_level: float = 0.95,
+) -> SplitConformalRegressor:
     """
     Train a Partial Least Squares (PLS) regression model
     """
     X_train, y_train = _prepare_xy(X_train, y_train)
 
-    model = PLSRegression(n_components=n_components)
-    model.fit(X_train, y_train)
-    return model
+    base_model = PLSRegression(n_components=n_components)
+    base_model.fit(X_train, y_train)
+
+    mapie_model = SplitConformalRegressor(
+        estimator=base_model, confidence_level=confidence_level, prefit=True
+    )
+    mapie_model.conformalize(X_train, y_train)
+
+    return mapie_model
 
 
-def train_xgb_model(X_train: np.ndarray, y_train: np.ndarray) -> XGBRegressor:
+def train_xgb_model(
+    X_train: np.ndarray, y_train: np.ndarray, confidence_level: float = 0.95
+) -> SplitConformalRegressor:
     """
-    Train an XGBoost regressor for scalar titer prediction
+    Train an XGBoost regressor
     """
     X_train, y_train = _prepare_xy(X_train, y_train)
 
-    model = XGBRegressor(
+    base_model = XGBRegressor(
         objective="reg:squarederror",
         n_estimators=200,
         max_depth=3,
         learning_rate=0.05,
         random_state=0,
     )
-    model.fit(X_train, y_train)
-    return model
+    base_model.fit(X_train, y_train)
+
+    mapie_model = SplitConformalRegressor(
+        estimator=base_model, confidence_level=confidence_level, prefit=True
+    )
+    mapie_model.conformalize(X_train, y_train)
+
+    return mapie_model
 
 
 def compute_model_metrics(y: np.ndarray, pred: np.ndarray) -> ModelMetrics:
@@ -111,3 +142,63 @@ def performance_model(model, X: np.ndarray, y: np.ndarray) -> ModelMetrics:
     """
     pred = inference(model, X)
     return compute_model_metrics(y, pred)
+
+
+def inference_with_confidence(model, X: np.ndarray) -> dict[str, float]:
+    """
+    Run model prediction and calculate
+    - point estimate
+    - MAPIE uncertainty
+    - confidence bounds
+    """
+    X_array = np.asarray(X, dtype=float)
+    if X_array.ndim == 1:
+        X_array = X_array.reshape(1, -1)
+
+    if hasattr(model, "predict_interval"):
+        y_pred, y_pis = model.predict_interval(X_array)
+        pred_val = round(float(y_pred[0]), 2)
+        lower_bound = round(float(y_pis[0, 0, 0]), 2)
+        upper_bound = round(float(y_pis[0, 1, 0]), 2)
+        uncertainty = round((upper_bound - lower_bound) / 2.0, 2)
+    else:
+        pred = inference(model, X_array)
+        pred_val = round(float(pred[0]), 2)
+        uncertainty = 0.0
+        lower_bound = pred_val
+        upper_bound = pred_val
+
+    return {
+        "prediction": pred_val,
+        "uncertainty": uncertainty,
+        "lower_bound": lower_bound,
+        "upper_bound": upper_bound,
+    }
+
+
+def _get_base_estimator(model):
+    """
+    Make sure that it returns the actual base estimator name
+    """
+    if hasattr(model, "_estimator"):
+        model = model._estimator
+    if hasattr(model, "_mapie_regressor") and hasattr(
+        model._mapie_regressor, "estimator"
+    ):
+        model = model._mapie_regressor.estimator
+    if isinstance(model, Pipeline):
+        model = model.steps[-1][1]
+    return model
+
+
+def get_model_metadata(model, model_path: str | Path, version: str = "1.0.0") -> dict:
+    """
+    Extract metadata details from a loaded model object and file path
+    """
+    path = Path(model_path)
+    base_estimator = _get_base_estimator(model)
+    return {
+        "name": type(base_estimator).__name__,
+        "version": version,
+        "file": path.name,
+    }

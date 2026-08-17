@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pandas as pd
+from mlflow_utils import log_model_run, setup_experiment
 from model import (
     performance_model,
     save_model,
@@ -17,6 +18,8 @@ class TrainingConfig(BaseModel):
     target_col: str = "Y:Titer"
     exclude_cols: tuple[str, ...] = ("Y:Titer",)
     pls_n_components: int = 5
+    confidence_level: float = 0.95
+    experiment_name: str = "mAb_Titer_Prediction"
 
 
 def main():
@@ -29,18 +32,62 @@ def main():
     X = train_df[feature_cols].to_numpy()
     y = train_df[config.target_col].to_numpy()
 
-    mlr_model = train_mlr_model(X, y)
-    pls_model = train_pls_model(X, y, n_components=config.pls_n_components)
-    xgb_model = train_xgb_model(X, y)
+    setup_experiment(config.experiment_name)
+    print(f"Training on {len(feature_cols)} features...")
 
-    print(f"Training on {len(feature_cols)} features")
-    print("MLR metrics:", performance_model(mlr_model, X, y).model_dump())
-    print("PLS metrics:", performance_model(pls_model, X, y).model_dump())
-    print("XGB metrics:", performance_model(xgb_model, X, y).model_dump())
+    models = {
+        "MLR_Model": (
+            train_mlr_model(X, y, confidence_level=config.confidence_level),
+            "mlr_model.joblib",
+            {
+                "algorithm": "MLR",
+                "n_features": len(feature_cols),
+                "confidence_level": config.confidence_level,
+            },
+        ),
+        "PLS_Model": (
+            train_pls_model(
+                X,
+                y,
+                n_components=config.pls_n_components,
+                confidence_level=config.confidence_level,
+            ),
+            "pls_model.joblib",
+            {
+                "algorithm": "PLS",
+                "n_components": config.pls_n_components,
+                "n_features": len(feature_cols),
+                "confidence_level": config.confidence_level,
+            },
+        ),
+        "XGB_Model": (
+            train_xgb_model(X, y, confidence_level=config.confidence_level),
+            "xgb_model.joblib",
+            {
+                "algorithm": "XGBoost",
+                "n_estimators": 200,
+                "max_depth": 3,
+                "learning_rate": 0.05,
+                "n_features": len(feature_cols),
+                "confidence_level": config.confidence_level,
+            },
+        ),
+    }
 
-    save_model(mlr_model, config.models_dir / "mlr_model.joblib")
-    save_model(pls_model, config.models_dir / "pls_model.joblib")
-    save_model(xgb_model, config.models_dir / "xgb_model.joblib")
+    for name, (model, filename, params) in models.items():
+        metrics = performance_model(model, X, y).model_dump()
+        print(f"{name} metrics:", metrics)
+
+        log_model_run(
+            run_name=name,
+            model=model,
+            params=params,
+            metrics=metrics,
+        )
+
+        save_model(model, config.models_dir / filename)
+
+    print("Models saved and logged to MLflow successfully.")
 
 
 if __name__ == "__main__":

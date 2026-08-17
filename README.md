@@ -4,7 +4,6 @@
 
 Predict **the final mAb product titer** of a simulated fed-batch upstream bioprocess from a mix of scalar process settings and daily time-series process data.
 
-
 ## Workflow
 
 1. **Raw data validation**: Validate data quality
@@ -36,21 +35,18 @@ pip install uv
 uv sync
 ```
 
-### Serve Model Server with Uvicorn
+### Serve Model Server
 
 An endpoint on the App server using FastAPI framework handles the prediction requests and returns the value predicted by the deployed ML pipeline. The endpoint is server/predict with a **POST** operation.
 
 1) Use Uvicorn Server
 ```sh
-# Start microservice
 uv run uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
-2) Use Docker to dockerize this server. The file `Dockerfile` contains all the instructions required to build the Docker image.
+2) Use Docker to containerize this server
 ```sh
-# Build image
 docker build -t ml-titer .
-# Then run container
 docker run --rm -p 8000:8000 ml-titer
 ```
 
@@ -101,7 +97,7 @@ curl http://localhost:8000/models
 
 **Create payload from YAML file**
 ```sh
-uv run python spec_yml_to_json.py > payload.json
+python spec_yml_to_json.py > payload.json
 ```
 
 Example `payload.json` :
@@ -149,7 +145,8 @@ curl -X POST http://0.0.0.0:8000/predict \
 ├── main.py                       # App microservice
 ├── ml
 │   ├── data.py                   # Helper functions for data processing
-│   ├── model.py                  # Helper functions for ML
+│   ├── mlflow_utils.py           # Helper functions for MLflow
+│   ├── model.py                  # Helper functions for model training
 │   └── train_model.py            # Script to train models for inference request
 ├── models
 │   ├── *.joblib                  # Pretrained models for inference request
@@ -161,7 +158,7 @@ curl -X POST http://0.0.0.0:8000/predict \
 ├── README.md                     # This file
 ├── spec_yml_to_json.py           # Script to convert inference server yml to JSON file
 ├── tests
-│   ├── test_*.py                 # Pytest functions
+│   ├── test_*.py                 # Pytest tests
 └── uv.lock                       # uv configuration
 ```
 
@@ -280,13 +277,34 @@ I evaluated baseline models under 5-fold $\times$ 10-repeat cross-validation com
 - **OpenAPI YAML vs. JSON DTO**: Sample inference input data is provided as an example in an OpenAPI spec file (`inference_server_spec.yml`), whereas the FastAPI server requires a JSON payload matching a Pydantic DTO. Parsing YAML file on every server request introduces unnecessary disk I/O and heavy parsing overhead on the API server.
 - To solve this problem, I use a separate script `spec_yml_to_json.py` to extract the sample experiment payload into a JSON file (`payload.json`). So clients can send standard JSON POST requests at runtime directly to `/predict`, keeping the microservice fast. In addition, I also implemented a `/predict/file` endpoint in `feat/yaml-file-prediction` branch as an alternative, which allows clients to upload `.yml` files directly. This endpoint uses FastAPI's `UploadFile` to receive `.yml` files and parse them through the Pydantic DTO.
 
+## Model Tracking
+
+I use MLfLow to track model training parameters, evaluation metrics, and model artifacts.
+
+Go to `ml` folder:
+```sh
+cd ml
+```
+
+**Run model training with MLflow logging:**
+```sh
+python train_model
+```
+
+**Launch the MLflow UI:**
+```sh
+mlflow ui
+```
+Then navigate to `http://127.0.0.1:5000` in your browser to view the MLflow dashboard.
+
 ## Development
 
 **Tech stack**
 - **Environment**: Python 3.11+, uv, ruff
 - **Data processing**: NumPy, Pandas, Scikit-learn
 - **Statistical inference**: MAPIE
-- **Model development**: Scikit-learn, XGBoost
+- **Model development**: Scikit-learn, XGBoost, MLflow
+- **Experiment tracking**: MLflow
 - **Inference microservice**: Docker, FastAPI, Uvicorn, PyYAML
 - **DevOps**: CI/CD, GitHub Actions, Pydantic, Pytest
 - **Workflow tracking**: Notion

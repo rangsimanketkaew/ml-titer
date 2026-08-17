@@ -1,7 +1,13 @@
 from pathlib import Path
 
 import pandas as pd
-from model import performance_model, save_model, train_mlr_model, train_xgb_model
+from model import (
+    performance_model,
+    save_model,
+    train_mlr_model,
+    train_pls_model,
+    train_xgb_model,
+)
 from pydantic import BaseModel
 
 
@@ -10,6 +16,7 @@ class TrainingConfig(BaseModel):
     models_dir: Path = Path("../models")
     target_col: str = "Y:Titer"
     exclude_cols: tuple[str, ...] = ("Y:Titer",)
+    pls_n_components: int = 5
 
 
 def main():
@@ -23,13 +30,16 @@ def main():
     y = train_df[config.target_col].to_numpy()
 
     mlr_model = train_mlr_model(X, y)
+    pls_model = train_pls_model(X, y, n_components=config.pls_n_components)
     xgb_model = train_xgb_model(X, y)
 
     print(f"Training on {len(feature_cols)} features")
     print("MLR metrics:", performance_model(mlr_model, X, y).model_dump())
+    print("PLS metrics:", performance_model(pls_model, X, y).model_dump())
     print("XGB metrics:", performance_model(xgb_model, X, y).model_dump())
 
     save_model(mlr_model, config.models_dir / "mlr_model.joblib")
+    save_model(pls_model, config.models_dir / "pls_model.joblib")
     save_model(xgb_model, config.models_dir / "xgb_model.joblib")
 
 

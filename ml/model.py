@@ -3,6 +3,7 @@ from pathlib import Path
 import joblib
 import numpy as np
 from pydantic import BaseModel, ConfigDict
+from sklearn.cross_decomposition import PLSRegression
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.pipeline import Pipeline
@@ -30,6 +31,19 @@ def train_mlr_model(X_train: np.ndarray, y_train: np.ndarray) -> Pipeline:
     X_train, y_train = _prepare_xy(X_train, y_train)
 
     model = Pipeline([("scaler", StandardScaler()), ("regressor", LinearRegression())])
+    model.fit(X_train, y_train)
+    return model
+
+
+def train_pls_model(
+    X_train: np.ndarray, y_train: np.ndarray, n_components: int = 5
+) -> PLSRegression:
+    """
+    Train a Partial Least Squares (PLS) regression model
+    """
+    X_train, y_train = _prepare_xy(X_train, y_train)
+
+    model = PLSRegression(n_components=n_components)
     model.fit(X_train, y_train)
     return model
 

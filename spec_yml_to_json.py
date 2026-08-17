@@ -6,7 +6,9 @@ import yaml
 SPEC_PATH = pathlib.Path("inference_server_spec.yml")
 
 
-def load_runtime_request(spec_path: str | pathlib.Path = SPEC_PATH) -> dict:
+def load_runtime_request(
+    spec_path: str | pathlib.Path = SPEC_PATH, model: str = "pls"
+) -> dict:
     """
     Read OpenAPI yaml and return the PredictRequest payload in JSON format
     """
@@ -19,6 +21,7 @@ def load_runtime_request(spec_path: str | pathlib.Path = SPEC_PATH) -> dict:
     properties = request_schema.get("properties", {})
 
     return {
+        "model": model,
         "timestamps": properties.get("timestamps", {}).get("example", []),
         "values": properties.get("values", {}).get("example", {}),
     }

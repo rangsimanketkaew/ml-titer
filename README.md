@@ -26,7 +26,7 @@ Link: https://app.notion.com/p/Predicting-mAb-Titer-Tasks-to-Done-220ea55998d882
 
 ## Inference App
 
-### Environment setup
+### Environment Setup
 ```sh
 git clone <repository-url>
 cd ml-titer
@@ -36,47 +36,91 @@ pip install uv
 uv sync
 ```
 
-### Launching API Service
+### Serve Model Server with Uvicorn
 
 An endpoint on the App server using FastAPI framework handles the prediction requests and returns the value predicted by the deployed ML pipeline. The endpoint is server/predict with a **POST** operation.
 
-#### 1) Serve model server with Uvicorn
-
-Uvicorn Server uses the API to serve the prediction requests.
-
+1) Use Uvicorn Server
 ```sh
 # Start microservice
 uv run uvicorn main:app --host 0.0.0.0 --port 8000
+```
 
-# Check if server is healthy
+2) Use Docker to dockerize this server. The file `Dockerfile` contains all the instructions required to build the Docker image.
+```sh
+# Build image
+docker build -t ml-titer .
+# Then run container
+docker run --rm -p 8000:8000 ml-titer
+```
+
+You can visit `http://localhost:8000/docs` to see the API documentation.
+
+### Health Check (`GET /health`)
+```sh
 curl -X GET http://0.0.0.0:8000/health
+```
 
-# Create payload from YAML file
+**Response**
+```json
+{
+  "status": "healthy"
+}
+```
+
+### List Availabel Models (`GET /models`)
+```sh
+curl http://localhost:8000/models
+```
+
+**Response**
+```json
+{
+  "active_model": "pls_model.joblib",
+  "available_models": [
+    {
+      "id": "mlr",
+      "algorithm": "Multiple Linear Regression (MLR)",
+      "file": "mlr_model.joblib"
+    },
+    {
+      "id": "pls",
+      "algorithm": "Partial Least Squares (PLS)",
+      "file": "pls_model.joblib"
+    },
+    {
+      "id": "xgb",
+      "algorithm": "XGBoost Regressor",
+      "file": "xgb_model.joblib"
+    }
+  ]
+}
+```
+
+### Inference Request (`POST /predict`)
+
+**Create payload from YAML file**
+```sh
 uv run python spec_yml_to_json.py > payload.json
+```
 
-# Make inference request
+Example `payload.json` :
+```json
+{
+  "model": "pls",        # Options: mlr, pls, xgb
+  "timestamps": [...],
+  "values": {...},
+}
+```
+
+**Make inference request**
+```sh
 curl -X POST http://0.0.0.0:8000/predict \
     -H "Content-Type: application/json" \
     --data @payload.json
 ```
 
-#### 2) Serve model server with Docker
-
-We can also dockerize this server, and final predictions will be served by the Docker container. The file `Dockerfile` contains all the instructions required to build the Docker image.
-
-```sh
-# Build image
-docker build -t ml-titer .
-
-# Run container
-docker run --rm -p 8000:8000 ml-titer
-
-# Health check
-curl -X GET http://localhost:8000/health
-```
-
-#### Example API Response (`POST /predict`)
-
+**Response**
 ```json
 {
   "status": "success",

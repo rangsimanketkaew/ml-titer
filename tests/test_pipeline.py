@@ -53,3 +53,26 @@ def test_predict_endpoint_returns_numeric_prediction() -> None:
     payload = response.json()
     assert payload["status"] == "success"
     assert isinstance(payload["prediction"], (int, float))
+
+
+def test_predict_endpoint_with_model_in_request_body() -> None:
+    request_body = load_runtime_request(SPEC_PATH)
+    client = TestClient(app)
+
+    for model_id in ["mlr", "pls", "xgb"]:
+        body = dict(request_body, model=model_id)
+        response = client.post("/predict", json=body)
+        assert response.status_code == 200, response.text
+        payload = response.json()
+        assert payload["status"] == "success"
+        assert "prediction" in payload
+        assert "model_info" in payload
+
+
+def test_predict_endpoint_with_invalid_model_returns_400() -> None:
+    request_body = load_runtime_request(SPEC_PATH)
+    client = TestClient(app)
+
+    body = dict(request_body, model="invalid")
+    response = client.post("/predict", json=body)
+    assert response.status_code == 400

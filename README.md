@@ -1,13 +1,11 @@
 # Predicting Titer of a Simulated Upstream Bioprocess
 
-Interview tasks for ML Engineer position at DataHow
-
 ## Task
 
-Predict the final mAb product titer of a simulated fed-batch upstream bioprocess from a mix of scalar process settings and daily time-series process data.
+Predict **the final mAb product titer** of a simulated fed-batch upstream bioprocess from a mix of scalar process settings and daily time-series process data.
 
 
-## Pipeline Architecture
+## Workflow
 
 1. **Raw data validation**: Validate data quality
 2. **Data preparation**: Clean and preprocess data
@@ -18,6 +16,9 @@ Predict the final mAb product titer of a simulated fed-batch upstream bioprocess
 7. **Model deployment**: Containerize and deploy model with Uvicorn/Docker
 8. **Model versioning**: Track metrics and version models
 9. **Log storage**: Log model performance
+
+I use Notion with Kanban to track my workflow for this project.
+Link: https://app.notion.com/p/Predicting-mAb-Titer-Tasks-to-Done-220ea55998d882d1aec7019f8abeef3b
 
 ## Project Structure
 
@@ -210,12 +211,60 @@ curl -X GET http://localhost:8000/health
 ## Development
 
 **Tech stack**
-- **Environment**: Python 3.11-3.13, uv, ruff
+- **Environment**: Python 3.11+, uv, ruff
 - **Data processing**: NumPy, Pandas, Scikit-learn
 - **Model development**: Scikit-learn, XGBoost
-- **Inference microservice**: Docker, FastAPI, pyyaml
-- **DepOps**: CI/CD, pydantic
+- **Inference microservice**: Docker, FastAPI, Uvicorn, PyYAML
+- **DevOps**: CI/CD, Pydantic
+
+### Architecture Design of ML Inference Microservice
+
+```
+        [ Client Inference Request ]
+                      |  (HTTP POST /predict with JSON payload*)
+                      v
+
+          [ FastAPI API Gateway ] 
+  (Validates request schema via Pydantic DTO)
+                      │
+                      v
+
+  [ Data preprocessing & Feature engineering ]
+(Reconstructs experiment time-series DataFrame)
+      (Computes slopes, AUCs, etc. )
+   (Filters 18 non-redundant features)
+                      │
+                      v
+
+                [ Inference ]
+   (Deserializes trained model via Joblib)
+   (Executes scalar mAb Titer prediction)
+                      │
+                      v
+ 
+     [ Response {"prediction": float} ]
+```
+
+**JSON payload can be generated from the `spec_yml_to_json.py` script.*
+
+#### Pipeline Components & Tech Stack Details
+
+1. **API Gateway & Schema Validation** (`FastAPI`, `Pydantic v2`, `Uvicorn`, `Docker`)
+   - Receives HTTP `POST` requests at `/predict` with bioprocess daily time-series data (`timestamps` and parameter `values`).
+   - Uses Pydantic data transfer objects (`ModelFeatures`) to enforce strict input data validation and type checking.
+   - Served asynchronously via Uvicorn ASGI server containerized inside Docker.
+
+2. **Feature Engineering Pipeline** (`Pandas`, `NumPy`, `ml.data`)
+   - **Data Transformation** (`request_to_exp_dataframe`): Converts JSON time-series payload into structured pandas DataFrames per experiment.
+   - **Feature Extraction** (`build_feature_table`): Dynamically computes summary kinetic features including slopes, area under curve (AUCs), final day values, peak times (`VCD_time_to_peak`), and temperature/pH shift boolean flags.
+   - **Feature Selection**: Selects the top 18 non-redundant features matching model training specifications.
+
+3. **Inference & Serving Engine** (`Joblib`, `Scikit-learn` / `XGBoost`, `ml.model`)
+   - Loads the serialized model artifact (`models/xgb_model.joblib`) into memory at server startup using Joblib.
+   - Transforms 2D NumPy feature vectors and computes target mAb titer predictions (`inference`).
+   - Returns a structured JSON response `{"prediction": float}` to the client.
 
 ## Author
 
 Rangsiman Ketkaew
+

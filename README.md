@@ -111,7 +111,12 @@ Identifies the day when viable cell density reaches its maximum, marking the tra
 A list of 18 non-redundant filtered features selected via target correlation ($|r| \ge 0.25$) and pairwise multicollinearity pruning ($|r_{\text{pair}}| < 0.85$): 
 
 ```
-'VCD_time_to_peak', 'Lysed_slope', 'VCD_auc', 'Lac_auc', 'Z:ExpDuration', 'FeedGlc_auc', 'FeedGln_slope', 'VCD_final', 'FeedGln_auc', 'Lac_slope', 'FeedGln_final', 'ph_shift_reached', 'pH_final', 'FeedGlc_final', 'temp_final', 'temp_shift_reached', 'Glc_final', 'Z:tempStart'
+'VCD_time_to_peak', 'Lysed_slope', 'VCD_auc',
+'Lac_auc', 'Z:ExpDuration', 'FeedGlc_auc',
+'FeedGln_slope', 'VCD_final', 'FeedGln_auc',
+'Lac_slope', 'FeedGln_final', 'ph_shift_reached',
+'pH_final', 'FeedGlc_final', 'temp_final',
+'temp_shift_reached', 'Glc_final', 'Z:tempStart'
 ```
 
 ## The Guideline on Selecting Models
@@ -144,6 +149,11 @@ I evaluated baseline models under 5-fold $\times$ 10-repeat cross-validation com
   - PLS $R^2$ reaches 0.771 with lowest RRMSE 24.6%.
   - Unregularized MLR $R^2$ increases from 0.624 to 0.724 (+10 percentage points).
 - **Tree Ensembles (GB 0.793, RF 0.731)** perform best on the full 47-feature set where decision tree splits handle non-linear interactions across all raw variables.
+
+### Top Choice
+
+- **Best baseline model**: PLS with 5 components ($\text{R}^2 = 0.7714$, $\text{RRMSE} = 24.6%$).
+- **Reason**: It handles multicollinearity in bioprocess features effectively.
 
 ## App for Inference
 

@@ -256,7 +256,7 @@ wheels = [
 ]
 
 [[package]]
-name = "datahow-titer-ml"
+name = "ml-titer"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

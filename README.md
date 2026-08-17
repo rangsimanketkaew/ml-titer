@@ -166,7 +166,7 @@ I evaluated baseline models under 5-fold $\times$ 10-repeat cross-validation com
 ### Environment setup
 ```sh
 git clone <repository-url>
-cd datahow-titer-ml
+cd ml-titer
 python -m venv .venv
 source .venv/bin/activate
 pip install uv
@@ -199,10 +199,10 @@ We can also dockerize this server, and final predictions will be served by the D
 #### Serve model server with Docker
 ```sh
 # Build image
-docker build -t datahow-titer-ml .
+docker build -t ml-titer .
 
 # Run container
-docker run --rm -p 8000:8000 datahow-titer-ml
+docker run --rm -p 8000:8000 ml-titer
 
 # Health check
 curl -X GET http://localhost:8000/health

@@ -51,5 +51,5 @@ def test_predict_endpoint_returns_numeric_prediction() -> None:
 
     assert response.status_code == 200, response.text
     payload = response.json()
-    assert "prediction" in payload
+    assert payload["status"] == "success"
     assert isinstance(payload["prediction"], (int, float))

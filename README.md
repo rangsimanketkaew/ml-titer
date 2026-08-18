@@ -8,8 +8,8 @@ Predict **the final mAb product titer** of a simulated fed-batch upstream biopro
 
 1. **Raw data validation**: Validate data quality
 2. **Data preparation**: Clean and preprocess data
-3. **Data transformation**: Feature engineering
-4. **Feature storage**: Manage engineered features
+3. **Exploratory data analysis (EDA)**: Investigate data distribution
+4. **Data transformation**: Feature engineering
 5. **Baseline model training**: Train baseline model
 6. **Uncertainty quantification**: Quantify model uncertainty with MAPIE
 7. **Model versioning**: Track metrics and version models, and log model performance
@@ -22,6 +22,7 @@ Link: https://app.notion.com/p/Predicting-mAb-Titer-Tasks-to-Done-220ea55998d882
 > Useful materials for learning Titer prediction and bioprocess:
 > 1. https://www.sciencedirect.com/science/article/pii/S1369703X23000086
 > 2. https://datahow.ch/model-based-upstream-process-optimization/
+> 3. https://www.mdpi.com/2227-9717/13/11/3394
 
 ## Inference App
 
@@ -193,11 +194,14 @@ Response
    - Titer is measured only at the end, i.e., this is a batch-to-scalar regression problem, not a sequence-to-sequence forecasting problem.
 5. Underlying process is *nonlinear* 
    - E.g. microbial/cell growth kinetics, feed-limited dynamics, saturation effects
+6. From the PCA analysis, I found that VCD Peak Timing (`VCD_time_to_peak`, r = +0.746). Extending exponential growth phase before peak VCD is the single strongest factor for high titer.
 
 ## Challenges of the Training and Test sets
 
+![Dataframe-transform](./notebook/img-dataframe-transform.jpg)
+
 - **Experiment duration mismatch**: Experiment runs for a different duration (7, 8, 9, or 14 days, set by `Z:ExpDuration`, starting from day 0), while in the test set the experiment is recorded for 14 days. Fortunately, the goal of this task is to **predict only the titer at the final/day-14 timepoint**, with full days 0–14 already given in the test set, and it is not a titer-per-day prediction.
-- Even though zero-padding technique to make experiment 14-day rows is tempting here because it will make training set shape match the test set shape, but it can cause more problems; e.g. it creates spurious features and zeroes have no meaningful physical meaning. Therefore, I decided to go for **one row per experiment** by compressing an entire experiment feature into a single summary.
+- Even though zero-padding technique to make experiment 14-day rows is tempting here because it will make training set shape match the test set shape, but it can cause more problems; e.g. it creates spurious features and zeroes have no meaningful physical meaning. Therefore, I decided to go for **one row per experiment** by compressing an entire experiment feature into a single summary (see an example of transformed dataframe in the figure above).
 - **Parameter mismatches within the dataset**: For example, in the first experiment, final Temp on day 0 (`35.07070707`) does not match the temperature on last day (`37.28282828`). In fact, they are supposed to be the same value. 
 - **Overfitting**: Small amount of training samples ($N = 100$) could make model prone to overfitting. I first start with different models and evaluate them using the cross-validation technique: linear/optimization-based models like partial least squares (PLS)/regularized linear models, multiple linear regression (MLR), tree-based models like Random Forest (RF)/Gradient Boosting, XGBoost, and probabilistic-based models like Gaussian Process (GP).
 

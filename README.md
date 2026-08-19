@@ -275,20 +275,15 @@ I evaluated baseline models under 5-fold $\times$ 10-repeat cross-validation com
 - **OpenAPI YAML vs. JSON DTO**: Sample inference input data is provided as an example in an OpenAPI spec file (`inference_server_spec.yml`), whereas the FastAPI server requires a JSON payload matching a Pydantic DTO. Parsing YAML file on every server request introduces unnecessary disk I/O and heavy parsing overhead on the API server.
 - To solve this problem, I use a separate script `spec_yml_to_json.py` to extract the sample experiment payload into a JSON file (`payload.json`). So clients can send standard JSON POST requests at runtime directly to `/predict`, keeping the microservice fast. In addition, I also implemented a `/predict/file` endpoint in `feat/yaml-file-prediction` branch as an alternative, which allows clients to upload `.yml` files directly. This endpoint uses FastAPI's `UploadFile` to receive `.yml` files and parse them through the Pydantic DTO.
 
-## Model Tracking
+## Model Tracking and Inference Logging
 
-I use MLflow to track model training parameters, evaluation metrics, and model artifacts.
+I use MLflow to track model training parameters, evaluation metrics, and model artifacts, and to log inference results.
 
 ![MLflow UI](./notebook/img-mlflow-ui.jpg)
 
-Go to `ml` folder:
-```sh
-cd ml
-```
-
 **Run model training with MLflow logging:**
 ```sh
-python train_model.py
+python -m ml.train_model
 ```
 
 **Launch the MLflow UI:**

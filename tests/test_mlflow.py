@@ -1,6 +1,6 @@
 import numpy as np
 
-from ml.mlflow_utils import log_model_run, setup_experiment
+from ml.mlflow_utils import log_inference_run, log_model_run, setup_experiment
 from ml.model import performance_model, train_pls_model
 
 
@@ -23,6 +23,23 @@ def test_mlflow_logging(tmp_path):
         model=model,
         params={"n_components": 2},
         metrics=metrics,
+    )
+
+    assert run_id is not None
+
+
+def test_log_inference_run(tmp_path):
+    db_path = tmp_path / "mlflow_infer.db"
+    tracking_uri = f"sqlite:///{db_path}"
+
+    run_id = log_inference_run(
+        model_id="pls",
+        prediction=2500.5,
+        uncertainty=120.0,
+        lower_bound=2380.5,
+        upper_bound=2620.5,
+        num_timestamps=15,
+        tracking_uri=tracking_uri,
     )
 
     assert run_id is not None

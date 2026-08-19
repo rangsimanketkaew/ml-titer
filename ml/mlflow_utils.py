@@ -44,3 +44,60 @@ def log_model_run(
             serialization_format="cloudpickle",
         )
         return run.info.run_id
+
+
+def log_inference_run(
+    model_id: str,
+    prediction: float,
+    uncertainty: float,
+    lower_bound: float,
+    upper_bound: float,
+    num_timestamps: int,
+    experiment_name: str = "Live_Inference",
+    tracking_uri: str | None = None,
+) -> str:
+    """
+    Log a live inference request run to MLflow and return the run_id.
+    """
+    exp_id = setup_experiment(
+        experiment_name=experiment_name, tracking_uri=tracking_uri
+    )
+    with mlflow.start_run(
+        experiment_id=exp_id, run_name=f"inference_{model_id}", nested=True
+    ) as run:
+        # Log parameters (visible in main table view by default)
+        mlflow.log_params(
+            {
+                "model_id": model_id,
+                "num_timestamps": num_timestamps,
+                "predicted_titer": f"{prediction:.2f} mg/L",
+                "uncertainty": f"±{uncertainty:.2f}",
+            }
+        )
+        # Log numerical metrics (for charts/tracking)
+        mlflow.log_metrics(
+            {
+                "prediction": float(prediction),
+                "uncertainty": float(uncertainty),
+                "lower_bound": float(lower_bound),
+                "upper_bound": float(upper_bound),
+            }
+        )
+        # Log tag
+        mlflow.set_tag("source", "live_inference_api")
+
+        # Log artifact JSON containing full inference payload
+        inference_payload = {
+            "model_id": model_id,
+            "prediction": float(prediction),
+            "unit": "mg/L",
+            "uncertainty": float(uncertainty),
+            "confidence_interval": {
+                "lower_bound": float(lower_bound),
+                "upper_bound": float(upper_bound),
+            },
+            "num_timestamps": num_timestamps,
+        }
+        mlflow.log_dict(inference_payload, "inference_result.json")
+
+        return run.info.run_id

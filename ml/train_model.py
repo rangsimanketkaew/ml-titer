@@ -1,20 +1,21 @@
 from pathlib import Path
 
 import pandas as pd
-from mlflow_utils import log_model_run, setup_experiment
-from model import (
+from pydantic import BaseModel
+
+from ml.mlflow_utils import log_model_run, setup_experiment
+from ml.model import (
     performance_model,
     save_model,
     train_mlr_model,
     train_pls_model,
     train_xgb_model,
 )
-from pydantic import BaseModel
 
 
 class TrainingConfig(BaseModel):
-    data_path: Path = Path("../data/train_exp_features.csv")
-    models_dir: Path = Path("../models")
+    data_path: Path = Path("data/train_exp_features.csv")
+    models_dir: Path = Path("models")
     target_col: str = "Y:Titer"
     exclude_cols: tuple[str, ...] = ("Y:Titer",)
     pls_n_components: int = 5

@@ -5,6 +5,7 @@ from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
 from ml.data import build_feature_table, request_to_exp_dataframe
+from ml.mlflow_utils import log_inference_run
 from ml.model import get_model_metadata, inference_with_confidence, load_model
 
 ROOT_DIR = Path(__file__).resolve().parent
@@ -121,6 +122,15 @@ async def predict(features: ModelFeatures):
 
     pred_res = inference_with_confidence(model_obj, feature_df.to_numpy(dtype=float))
     model_meta = get_model_metadata(model_obj, model_path)
+
+    log_inference_run(
+        model_id=selected_id,
+        prediction=pred_res["prediction"],
+        uncertainty=pred_res["uncertainty"],
+        lower_bound=pred_res["lower_bound"],
+        upper_bound=pred_res["upper_bound"],
+        num_timestamps=len(features.timestamps),
+    )
 
     return PredictionResponse(
         status="success",
